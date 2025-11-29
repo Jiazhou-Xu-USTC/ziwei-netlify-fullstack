@@ -603,9 +603,10 @@ ${hollandResult.majorRecommendations.slice(0, 3).map((major, index) =>
 ${hollandResult.developmentSuggestion}
 
 ## 工作环境
-适合的工作环境：${hollandResult.workEnvironment}
+适合的工作环境：${hollandResult.workEnvironment}`
         ,
         model: 'default-analysis',
         timestamp: new Date().toISOString()
     };
-} 
+}
+
