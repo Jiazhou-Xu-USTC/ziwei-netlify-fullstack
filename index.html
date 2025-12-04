@@ -1851,38 +1851,5 @@
             }
         });
     </script>
-    // ========== DeepSeek 流式解析函数（新增）==========
-    async function fetchDeepSeekStream(url, payload, onToken, onDone) {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-    
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-    
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-    
-            buffer += decoder.decode(value, { stream: true });
-    
-            const parts = buffer.split("\n\n");
-            buffer = parts.pop();
-    
-            for (const part of parts) {
-                if (!part.startsWith("data:")) continue;
-    
-                const data = part.replace("data:", "").trim();
-                if (data === "[DONE]") {
-                    onDone && onDone();
-                    return;
-                }
-                onToken(data);
-            }
-        }
-    }
 </body>
 </html>
