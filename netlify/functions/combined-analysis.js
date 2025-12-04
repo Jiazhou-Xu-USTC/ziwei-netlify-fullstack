@@ -469,49 +469,59 @@ async function callDeepSeekForZiweiAnalysis(ziweiData, userData) {
 }
 
 async function callDeepSeekForCombinedAnalysis(ziweiData, hollandResult, userData) {
-    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'your-deepseek-api-key-here') {
-        return { type: 'pending', content: '分析正在进行中，请稍后查看结果。' };
-    }
 
     const prompt = buildCombinedAnalysisPrompt(ziweiData, hollandResult, userData);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
 
-    try {
-        const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: '你是一位资深的国学易经术数领域专家...' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0.4,
-                max_tokens: 1500
-            }),
-            signal: controller.signal
-        });
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
 
-        clearTimeout(timeoutId);
+    return {
+        stream: true,
+        async *[Symbol.asyncIterator]() {
 
-        if (response.ok) {
-            const data = await response.json();
-            return {
-                type: 'deepseek_api',
-                content: data.choices[0].message.content,
-                model: data.model,
-                timestamp: new Date().toISOString()
-            };
+            const response = await fetch("https://api.deepseek.com/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "deepseek-chat",
+                    stream: true,                           // 开启流式！
+                    messages: [
+                        { role: "system", content: "你是一位专业的国学+心理学分析专家。" },
+                        { role: "user", content: prompt }
+                    ]
+                })
+            });
+
+            const reader = response.body.getReader();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                const parts = buffer.split("\n\n");
+                buffer = parts.pop();
+
+                for (const part of parts) {
+                    if (!part.startsWith("data: ")) continue;
+
+                    const json = part.replace("data: ", "").trim();
+                    if (json === "[DONE]") return;
+
+                    try {
+                        const obj = JSON.parse(json);
+                        const token = obj?.choices?.[0]?.delta?.content;
+                        if (token) yield token; // 把 token 一块块送出去
+                    } catch {}
+                }
+            }
         }
-    } catch (error) {
-        console.warn('⏳ DeepSeek响应超时或失败，返回pending状态');
-    }
-
-    return { type: 'pending', content: '分析正在进行中，请稍后查看结果。' };
+    };
 }
 
 // === 提示词构建函数 ===
